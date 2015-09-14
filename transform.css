@@ -1,0 +1,102 @@
+/*
+An example Turvy transformation sheet, for noodling with language constructs.
+Note that the syntax is identical to CSS, and any correct CSS parser should
+be able to parse this file. If applied as a stylesheet in a browser, however,
+it will find no valid rules to apply.
+
+This example assumes a prototype representing a blog home page, and a context
+that looks something like an RSS feed.
+
+{
+    "site": {
+        "name": "sitename",
+        "description": "site description"
+    },
+    "title": "Feed title",
+    "canonical_url": "http://example.com",
+    "entries": [
+        {
+            "title": "Entry Title",
+            "author": "Entry Author",
+            "published": "2015-09-14T16:00-0400",
+            "content": "<p>Some HTML goes here.</p>"
+        }
+    ]
+}
+
+*/
+
+/*
+A Rule: CSS selector syntax selects a node on which to operate. A declaration
+block then defines the transforms to apply. The property name defines the
+attribute on which to operate, and the value defines the new value. Values
+may be literals, functions, or a JSONpath selecting a value from the context.
+*/
+header .site-title {content: $.site.name;}
+header .site-description {content: $.site.description;}
+
+/*
+Note that the content property normally refers to the content of the selected
+element, but if the selected element is "meta" it will refer to the attribute.
+*/
+meta[name="robots"] {content: "noindex,nofollow";}
+meta[name="generator"] {content: "Turvy inside-out templateer";}
+
+/*
+CSS pseudo-elements can be used to append or prepend content to an element.
+In Turvy, these pseudo-elements appear as children of the selected element
+(not siblings).
+*/
+title::before { content: $.title }
+
+/* The element function can generate new markup elements. */
+head::after { content: element(link, rel=canonical, href=$.canonical_url) }
+
+/* To completely remove an element (and its content), set its self property
+to null. */
+link[rel="edit"] { self: null }
+
+/*
+CSS2 specifies no at rules in rulesets, but allows them.
+The @foreach rule binds a selector to a list. The result is that the first
+element matching the selector is matched, while all subsequent elements
+matching the selector are removed. Turvy then executes a "for each" loop,
+setting the variable name after "as" to the current loop item. For clarity,
+variable names are required to begin with a "$".
+
+Note that the @foreach block treats the selected element as an independent
+document fragment, and all selectors are relative to the selected fragment.
+*/
+article.post {
+    /* Bind the selected elements to the selected JSONPath.
+    If the JSONPath is false or empty, the selected elements will be removed.
+    If the JSONPath is a list, all selected
+    elements except the first will be removed from the document, and the
+    element will then be repeated for each value in the list.
+    */
+    @foreach $.entries as $entry {
+        .entry-title {content: $entry.title;}
+        .byline a.fn {content: $entry.author;}
+        time.published {
+            /* By default, datetimes are serialized according to RFC 3339. */
+            datetime: $entry.published;
+            /* The formatdate function can be used to serialize different
+            formats, as strftime. */
+            content: formatdate($entry.published, '%Y%m%d');
+        }
+        /* The html function takes a string containing markup and creates
+        document nodes. Otherwise, the markup would be escaped as CDATA. */
+        .entry-content {content: html($entry.content);}
+    }
+}
+
+ul.topstories > li {
+    /* Like @foreach, @bind binds an array to the selected elements. Unlike
+    @foreach, each selected element will be bound to the corresponding index
+    in the array, until one is exhausted. Unbound elements will then be
+    removed.
+    */
+    @bind $.entries as $entry {
+        .entry-title: $entry.title;
+    }
+}
